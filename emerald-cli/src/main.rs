@@ -10,12 +10,16 @@ extern crate log;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde;
+extern crate serde_json;
 
 extern crate docopt;
 extern crate env_logger;
 extern crate emerald_core as emerald;
 extern crate regex;
 
+mod chain;
+
+use chain::Chain;
 use docopt::Docopt;
 use emerald::keystore::KdfDepthLevel;
 use emerald::to_chain_id;
@@ -88,11 +92,11 @@ fn main() {
         exit(1);
     }
 
-    let sec_level: &str = &args.flag_security_level.parse::<String>().expect(
+    let sec_level_str: &str = &args.flag_security_level.parse::<String>().expect(
         "Expect to parse \
          security level",
     );
-    let sec_level = match KdfDepthLevel::from_str(sec_level) {
+    let sec_level = match KdfDepthLevel::from_str(sec_level_str) {
         Ok(sec) => sec,
         Err(e) => {
             error!("{}", e.to_string());
@@ -101,21 +105,23 @@ fn main() {
     };
     info!("security level set to '{}'", sec_level);
 
+    let base_path_str = args.flag_base_path.parse::<String>().expect(
+        "Expect to parse base \
+        path",
+    );
+
+    let base_path = if !base_path_str.is_empty() {
+        Some(PathBuf::from(&base_path_str))
+    } else {
+        None
+    };
+
+    let chain = Chain::new(sec_level_str, base_path_str.as_str());
+
     if args.cmd_server {
         let addr = format!("{}:{}", args.flag_host, args.flag_port)
             .parse::<SocketAddr>()
             .expect("Expect to parse address");
-
-        let base_path_str = args.flag_base_path.parse::<String>().expect(
-            "Expect to parse base \
-             path",
-        );
-
-        let base_path = if !base_path_str.is_empty() {
-            Some(PathBuf::from(&base_path_str))
-        } else {
-            None
-        };
 
         emerald::rpc::start(&addr, args.flag_chain_id, base_path, Some(sec_level));
     }
